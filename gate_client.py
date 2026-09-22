@@ -5,7 +5,7 @@ from gpiozero import OutputDevice
 
 SERVER_URL = os.getenv("GATE_SERVER_URL", "http://localhost:3000")
 DEVICE_CODE = os.getenv("GATE_DEVICE_CODE", "GATE-001")
-DEVICE_TOKEN = os.getenv("GATE_DEVICE_TOKEN", "4e62922e-4e1a-49a8-97f9-ec0de3227d4d")
+DEVICE_TOKEN = os.getenv("GATE_DEVICE_TOKEN", "replace-with-device-token")
 RELAY_PIN = int(os.getenv("GATE_RELAY_PIN", "4"))
 RELAY_PULSE_SECONDS = float(os.getenv("GATE_RELAY_PULSE_SECONDS", "0.5"))
 

@@ -39,7 +39,7 @@ Create and activate a virtual environment:
 
 ```bash
 sudo apt update
-sudo apt install -y python3-venv
+sudo apt install -y python3-venv swig build-essential python3-dev liblgpio-dev
 python3 -m venv .venv
 source .venv/bin/activate
 ```
@@ -52,6 +52,16 @@ python -m pip install -r requirements.txt
 ```
 
 The virtual environment must be activated whenever you run the client manually. The `systemd` setup below uses the virtual environment directly, so activation is not needed for automatic startup.
+
+If `pip install -r requirements.txt` was already attempted and failed, install
+the native `lgpio` development library first, then retry:
+
+```bash
+sudo apt update
+sudo apt install -y liblgpio-dev
+source .venv/bin/activate
+python -m pip install --upgrade -r requirements.txt
+```
 
 ## Configuration
 
