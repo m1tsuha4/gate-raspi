@@ -23,6 +23,10 @@ Use the Raspberry Pi **BCM GPIO numbering**. Connect the relay input/control pin
 - A relay module connected to BCM GPIO 4
 - A registered gate device with a matching device code and device token
 
+The Python dependencies include the Socket.IO WebSocket client and the `lgpio`
+GPIO backend. The WebSocket client is required because `gate_client.py` uses
+the WebSocket transport directly.
+
 ## Installation
 
 Open a terminal on the Raspberry Pi and enter the client directory:
@@ -248,6 +252,40 @@ Activate the virtual environment and install the requirements again:
 ```bash
 source .venv/bin/activate
 python -m pip install -r requirements.txt
+```
+
+### `websocket-client package not installed`
+
+The client is configured to use WebSocket transport. Reinstall the requirements
+inside the active virtual environment:
+
+```bash
+source .venv/bin/activate
+python -m pip install --upgrade -r requirements.txt
+```
+
+You can verify the package is installed with:
+
+```bash
+python -c "import websocket; print(websocket.__version__)"
+```
+
+### GPIO backend fallback warnings
+
+Warnings about falling back from `lgpio`, `RPi.GPIO`, or `pigpio` mean that
+`gpiozero` could not load a native GPIO backend. Install the requirements inside
+the Raspberry Pi virtual environment:
+
+```bash
+source .venv/bin/activate
+python -m pip install --upgrade lgpio gpiozero
+```
+
+The fallback warning is separate from the Socket.IO connection error. Check
+that `lgpio` imports successfully:
+
+```bash
+python -c "import lgpio; print('lgpio OK')"
 ```
 
 ### The client cannot connect
