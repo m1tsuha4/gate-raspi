@@ -127,6 +127,11 @@ The client sends a heartbeat every five seconds. To test the relay, trigger a ga
 
 Stop a manual run with `Ctrl+C`.
 
+The client writes timestamped logs to `logs/gate-client.log` and rotates the
+file at midnight, retaining the latest 30 daily files. The `logs/` directory is
+created automatically and is excluded from Git. To store logs elsewhere, set
+`GATE_LOG_DIR` to a writable directory before starting the client.
+
 ## Start automatically on boot
 
 `systemd` is recommended because it starts the client after boot, restarts it if it exits, and records logs in the system journal.
@@ -315,3 +320,6 @@ sudo journalctl -u gate-client.service -n 100 --no-pager
 ```
 
 Also verify that the paths in `WorkingDirectory` and `ExecStart` exist and that the `User` has permission to access the project and GPIO hardware.
+
+Check the client log files in `logs/` as well as the system journal. When using
+`GATE_LOG_DIR`, confirm the service user can write to that directory.
