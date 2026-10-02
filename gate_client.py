@@ -60,12 +60,14 @@ def handle_gate_open(payload):
     logger.info("[raspi] Open gate command received: %s", payload)
 
     success = False
+    error_message = None
     try:
         logger.info("[raspi] Relay ON")
         relay.on()
         time.sleep(RELAY_PULSE_SECONDS)
         success = True
     except Exception as exc:
+        error_message = str(exc)
         logger.exception("[raspi] Relay error: %s", exc)
     finally:
         relay.off()
@@ -74,9 +76,11 @@ def handle_gate_open(payload):
     sio.emit(
         "gate:ack",
         {
+            "commandId": payload.get("commandId"),
             "transactionId": payload.get("transactionId", "unknown"),
             "deviceCode": DEVICE_CODE,
             "success": success,
+            "error": error_message,
         },
         namespace="/realtime",
     )
