@@ -225,6 +225,71 @@ sudo journalctl -u gate-client.service -f
 
 The service should show the connection message and heartbeat messages. Trigger a gate opening from the server to test the relay.
 
+## Remote power and shutdown schedule
+
+The API can request shutdown or reboot through the authenticated device
+connection. Since the client service runs as `pi`, grant only the required
+commands with `sudoers`:
+
+```bash
+sudo visudo -f /etc/sudoers.d/gate-client
+```
+
+Add this line, replacing `pi` if the service uses another account:
+
+```text
+pi ALL=(root) NOPASSWD: /sbin/shutdown -h now, /sbin/reboot
+```
+
+`visudo` validates the file before saving it. The client uses `sudo -n`, so it
+will report an error instead of waiting for a password if this permission is
+missing.
+
+Remove the previous `50 21 * * * /sbin/shutdown -h now` entry from the crontab
+where you originally added it. The API manages a marked entry in the
+`gate-client.service` user's crontab; it cannot replace a separate root
+crontab entry. If the old entry is in root's crontab, remove it with
+`sudo crontab -e` to avoid duplicate schedules.
+
+All endpoints below require an `ADMIN` or `SUPERADMIN` bearer token and a
+registered, currently connected device. A successful HTTP response means the
+command was sent to the Pi; its asynchronous result is emitted to dashboard
+Socket.IO clients as `system:ack`.
+
+Shut down immediately:
+
+```http
+POST /dashboard/gates/shutdown
+Authorization: Bearer <admin-token>
+Content-Type: application/json
+
+{"deviceCode":"GATE-001"}
+```
+
+Reboot immediately:
+
+```http
+POST /dashboard/gates/reboot
+Authorization: Bearer <admin-token>
+Content-Type: application/json
+
+{"deviceCode":"GATE-001"}
+```
+
+Set the daily shutdown time using the Raspberry Pi's local timezone:
+
+```http
+POST /dashboard/gates/shutdown-schedule
+Authorization: Bearer <admin-token>
+Content-Type: application/json
+
+{"deviceCode":"GATE-001","time":"21:50"}
+```
+
+Send `"time": null` to remove the managed daily shutdown schedule. Times must
+use 24-hour `HH:MM` format. Schedule changes update the Pi user's crontab and
+persist across client and device restarts.
+
 ## Service management
 
 Stop the client:

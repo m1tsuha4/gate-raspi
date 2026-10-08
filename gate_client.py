@@ -1,5 +1,7 @@
 import os
 import logging
+import re
+import subprocess
 from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
 import time
@@ -11,6 +13,7 @@ DEVICE_CODE = os.getenv("GATE_DEVICE_CODE", "GATE-001")
 DEVICE_TOKEN = os.getenv("GATE_DEVICE_TOKEN", "replace-with-device-token")
 RELAY_PIN = int(os.getenv("GATE_RELAY_PIN", "4"))
 RELAY_PULSE_SECONDS = float(os.getenv("GATE_RELAY_PULSE_SECONDS", "0.5"))
+CRON_MARKER = "# gate-qris-managed-shutdown"
 LOG_DIR = Path(
     os.getenv("GATE_LOG_DIR", str(Path(__file__).resolve().parent / "logs"))
 )
@@ -79,6 +82,86 @@ def handle_gate_open(payload):
             "commandId": payload.get("commandId"),
             "transactionId": payload.get("transactionId", "unknown"),
             "deviceCode": DEVICE_CODE,
+            "success": success,
+            "error": error_message,
+        },
+        namespace="/realtime",
+    )
+
+
+def set_shutdown_schedule(schedule_time):
+    if schedule_time is not None and not re.fullmatch(
+        r"(?:[01]\d|2[0-3]):[0-5]\d", schedule_time
+    ):
+        raise ValueError("time must be HH:MM or null to disable")
+
+    current = subprocess.run(
+        ["crontab", "-l"], capture_output=True, text=True, check=False
+    )
+    if current.returncode != 0 and "no crontab for" not in current.stderr.lower():
+        raise RuntimeError(current.stderr.strip() or "Unable to read crontab")
+
+    lines = current.stdout.splitlines() if current.returncode == 0 else []
+    lines = [line for line in lines if line.strip() != CRON_MARKER]
+    lines = [
+        line
+        for line in lines
+        if not (
+            len(line.split(maxsplit=5)) == 6
+            and line.split(maxsplit=5)[5] == "/sbin/shutdown -h now"
+        )
+    ]
+
+    if schedule_time is not None:
+        hour, minute = schedule_time.split(":")
+        lines.extend(
+            [
+                CRON_MARKER,
+                f"{int(minute)} {int(hour)} * * * sudo -n /sbin/shutdown -h now",
+            ]
+        )
+
+    updated = subprocess.run(
+        ["crontab", "-"], input="\n".join(lines) + "\n", text=True,
+        capture_output=True, check=False
+    )
+    if updated.returncode != 0:
+        raise RuntimeError(updated.stderr.strip() or "Unable to update crontab")
+
+
+@sio.on("system:command", namespace="/realtime")
+def handle_system_command(payload):
+    logger.info("[raspi] System command received: %s", payload)
+    action = payload.get("action")
+    success = False
+    error_message = None
+
+    try:
+        if action == "shutdown":
+            subprocess.run(
+                ["sudo", "-n", "/sbin/shutdown", "-h", "now"],
+                check=True,
+                timeout=10,
+            )
+        elif action == "reboot":
+            subprocess.run(
+                ["sudo", "-n", "/sbin/reboot"], check=True, timeout=10
+            )
+        elif action == "set-shutdown-schedule":
+            set_shutdown_schedule(payload.get("time"))
+        else:
+            raise ValueError("Unsupported system command")
+        success = True
+    except Exception as exc:
+        error_message = str(exc)
+        logger.exception("[raspi] System command failed: %s", exc)
+
+    sio.emit(
+        "system:ack",
+        {
+            "commandId": payload.get("commandId"),
+            "deviceCode": DEVICE_CODE,
+            "action": action,
             "success": success,
             "error": error_message,
         },
