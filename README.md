@@ -286,6 +286,16 @@ Content-Type: application/json
 {"deviceCode":"GATE-001","time":"21:50"}
 ```
 
+Read the current managed schedule:
+
+```http
+GET /dashboard/gates/shutdown-schedule?deviceCode=GATE-001
+Authorization: Bearer <admin-token>
+```
+
+The response contains the Pi's local time, or `null` if no managed schedule is
+configured. The Pi must be connected to answer this request.
+
 Send `"time": null` to remove the managed daily shutdown schedule. Times must
 use 24-hour `HH:MM` format. Schedule changes update the Pi user's crontab and
 persist across client and device restarts.

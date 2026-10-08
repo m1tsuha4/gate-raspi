@@ -129,6 +129,32 @@ def set_shutdown_schedule(schedule_time):
         raise RuntimeError(updated.stderr.strip() or "Unable to update crontab")
 
 
+def get_shutdown_schedule():
+    current = subprocess.run(
+        ["crontab", "-l"], capture_output=True, text=True, check=False
+    )
+    if current.returncode != 0:
+        if "no crontab for" in current.stderr.lower():
+            return None
+        raise RuntimeError(current.stderr.strip() or "Unable to read crontab")
+
+    lines = current.stdout.splitlines()
+    for index, line in enumerate(lines[:-1]):
+        if line.strip() != CRON_MARKER:
+            continue
+        match = re.fullmatch(
+            r"(\d{1,2}) (\d{1,2}) \* \* \* sudo -n /sbin/shutdown -h now",
+            lines[index + 1].strip(),
+        )
+        if not match:
+            raise RuntimeError("Managed shutdown schedule entry is invalid")
+        minute, hour = (int(value) for value in match.groups())
+        if minute > 59 or hour > 23:
+            raise RuntimeError("Managed shutdown schedule entry is invalid")
+        return f"{hour:02d}:{minute:02d}"
+    return None
+
+
 @sio.on("system:command", namespace="/realtime")
 def handle_system_command(payload):
     logger.info("[raspi] System command received: %s", payload)
@@ -149,24 +175,34 @@ def handle_system_command(payload):
             )
         elif action == "set-shutdown-schedule":
             set_shutdown_schedule(payload.get("time"))
+        elif action == "get-shutdown-schedule":
+            success = True
+            schedule_time = get_shutdown_schedule()
         else:
             raise ValueError("Unsupported system command")
-        success = True
+        if action != "get-shutdown-schedule":
+            success = True
     except Exception as exc:
         error_message = str(exc)
         logger.exception("[raspi] System command failed: %s", exc)
 
+    acknowledgement = {
+        "commandId": payload.get("commandId"),
+        "deviceCode": DEVICE_CODE,
+        "action": action,
+        "success": success,
+        "error": error_message,
+    }
+    if action == "get-shutdown-schedule":
+        acknowledgement["time"] = schedule_time if success else None
+
     sio.emit(
         "system:ack",
-        {
-            "commandId": payload.get("commandId"),
-            "deviceCode": DEVICE_CODE,
-            "action": action,
-            "success": success,
-            "error": error_message,
-        },
+        acknowledgement,
         namespace="/realtime",
     )
+    if action == "get-shutdown-schedule":
+        return acknowledgement
 
 
 def send_heartbeat_loop():
